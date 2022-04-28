@@ -142,13 +142,13 @@ export function getImageInfo(imgsrc) {
  *
  * @param {Number} cr_id
  */
-export function download(cr_id) {
+export function download(uploadId) {
   let api = config.BASE_API_URL
   let token = getToken()
   try {
     let link = document.createElement('a')
     link.target = "_blank"
-    link.href = `${api}/api/v1/talk/records/file/download?cr_id=${cr_id}&token=${token}`
+    link.href = `http://localhost:8002/api/file/dl/single?uploadId=${uploadId}&token=${token}`
     link.click()
   } catch (e) {}
 }

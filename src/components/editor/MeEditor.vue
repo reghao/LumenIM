@@ -155,6 +155,9 @@ import {
   ServeSendEmoticon,
 } from '@/api/chat'
 
+import { ServeFindFileSplitInfo, ServeUploadFile } from '@/api/upload'
+import {hashFile} from "../../utils/functions";
+
 export default {
   name: 'MeEditor',
   components: {
@@ -267,7 +270,6 @@ export default {
 
     // 选择图片文件后回调方法
     uploadImageChange(e) {
-      console.log(e.target.files[0])
       this.openImageViewer(e.target.files[0])
       this.$refs.restFile.value = null
     },
@@ -333,30 +335,59 @@ export default {
     // 确认上传图片消息回调事件
     confirmUploadImage() {
       const { talk_type, receiver_id } = this.$store.state.dialogue
-
-      let fileData = new FormData()
-      fileData.append('talk_type', talk_type)
-      fileData.append('receiver_id', receiver_id)
-      fileData.append('image', this.imageViewer.file)
-
       let ref = this.$refs.imageViewer
-
-      ServeSendTalkImage(fileData)
-        .then(res => {
-          ref.loading = false
-          if (res.code == 200) {
-            ref.closeBox()
+      const file = this.imageViewer.file
+      hashFile(file).then(res => {
+        ServeFindFileSplitInfo({
+          file_name: file.name,
+          file_size: file.size,
+          file_sha256sum: res.sha256sum
+        }).then(res => {
+          if (res.code === 0) {
+            const form = new FormData()
+            form.append('file', file)
+            form.append('uploadId', res.data.uploadId)
+            ServeUploadFile(form).then(res => {
+              if (res.code === 0) {
+                const form = new FormData()
+                form.append('talk_type', talk_type)
+                form.append('receiver_id', receiver_id)
+                form.append('upload_id', res.data.uploadId)
+                ServeSendTalkImage(form).then(res => {
+                  ref.loading = false
+                  if (res.code == 200) {
+                    ref.closeBox()
+                  } else {
+                    this.$notify({
+                      title: '友情提示',
+                      message: res.message,
+                      type: 'warning',
+                    })
+                  }
+                }).finally(() => {
+                  ref.loading = false
+                })
+              } else {
+                this.$notify({
+                  title: '友情提示',
+                  message: res.msg,
+                  type: 'warning',
+                })
+              }
+            }).finally(() => {
+              ref.loading = false
+            })
           } else {
             this.$notify({
               title: '友情提示',
-              message: res.message,
+              message: res.msg,
               type: 'warning',
+            }).finally(() => {
+              ref.loading = false
             })
           }
         })
-        .finally(() => {
-          ref.loading = false
-        })
+      })
     },
 
     // 选中表情包回调事件

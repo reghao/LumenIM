@@ -86,6 +86,7 @@ Vue.use(Progress)
 import { ServeFindFileSplitInfo, ServeFileSubareaUpload } from '@/api/upload'
 import { formateSize, getFileExt, parseTime } from '@/utils/functions'
 import { ServeSendTalkFile } from '@/api/chat'
+import {hashFile} from "../../utils/functions";
 
 export default {
   name: 'MeEditorFileManage',
@@ -145,30 +146,32 @@ export default {
     },
 
     upload(file) {
-      ServeFindFileSplitInfo({
-        file_name: file.name,
-        file_size: file.size,
-      }).then(res => {
-        if (res.code == 200) {
-          const { upload_id, split_size } = res.data
+      hashFile(file).then(res => {
+        ServeFindFileSplitInfo({
+          file_name: file.name,
+          file_size: file.size,
+          file_sha256sum: res.sha256sum
+        }).then(res => {
+          if (res.code == 0) {
+            const { uploadId, splitSize } = res.data
+            this.items.unshift({
+              hashName: uploadId,
+              originalFile: file,
+              filename: file.name,
+              status: 0, // 文件上传状态 0:等待上传 1:上传中 2:上传完成 3:网络异常
+              progress: 0,
+              filesize: formateSize(file.size),
+              filetype: file.type || '未知',
+              datetime: parseTime(new Date(), '{m}-{d} {h}:{i}'),
+              ext: getFileExt(file.name),
+              forms: this.fileSlice(file, uploadId, splitSize),
+              successNum: 0,
+              isDelete: false,
+            })
 
-          this.items.unshift({
-            hashName: upload_id,
-            originalFile: file,
-            filename: file.name,
-            status: 0, // 文件上传状态 0:等待上传 1:上传中 2:上传完成 3:网络异常
-            progress: 0,
-            filesize: formateSize(file.size),
-            filetype: file.type || '未知',
-            datetime: parseTime(new Date(), '{m}-{d} {h}:{i}'),
-            ext: getFileExt(file.name),
-            forms: this.fileSlice(file, upload_id, split_size),
-            successNum: 0,
-            isDelete: false,
-          })
-
-          this.triggerUpload(upload_id)
-        }
+            this.triggerUpload(uploadId)
+          }
+        })
       })
     },
 
@@ -185,9 +188,10 @@ export default {
         // 构建表单
         const form = new FormData()
         form.append('file', file.slice(start, end))
-        form.append('upload_id', hash)
-        form.append('split_index', i)
-        form.append('split_num', splitNum)
+        form.append('uploadId', hash)
+        form.append('splitIndex', i)
+        form.append('splitNum', splitNum)
+        form.append('sha256sum', 'sha256sum')
         forms.push(form)
       }
 
@@ -208,7 +212,7 @@ export default {
 
       ServeFileSubareaUpload(form)
         .then(res => {
-          if (res.code == 200) {
+          if (res.code == 0) {
             $index = this.getFileIndex(hashName)
             this.items[$index].successNum++
             this.items[$index].progress = Math.floor(
@@ -216,9 +220,9 @@ export default {
             )
             if (this.items[$index].successNum == length) {
               this.items[$index].status = 2
-              if (res.data.is_merge) {
+              if (res.data.isMerge) {
                 ServeSendTalkFile({
-                  upload_id: res.data.upload_id,
+                  upload_id: res.data.uploadId,
                   receiver_id: this.$store.state.dialogue.receiver_id,
                   talk_type: this.$store.state.dialogue.talk_type,
                 })

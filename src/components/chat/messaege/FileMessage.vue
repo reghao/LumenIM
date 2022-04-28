@@ -11,7 +11,7 @@
       </div>
     </div>
     <div class="footer">
-      <a @click="download(record_id)">下载</a>
+      <a @click="download(uploadId)">下载</a>
       <a>在线预览</a>
     </div>
   </div>
@@ -33,6 +33,7 @@ export default {
   },
   data() {
     return {
+      uploadId: '',
       file_id: 0,
       ext: '',
       fileName: '',
@@ -40,6 +41,7 @@ export default {
     }
   },
   created() {
+    this.uploadId = this.file.file_id
     this.file_id = this.file.id
     this.ext = this.file.suffix.toUpperCase()
     this.fileName = this.file.original_name
